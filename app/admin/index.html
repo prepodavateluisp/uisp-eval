@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>UISP 2026 — Администрация</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "72", Arial, sans-serif; background: #f5f6f7; color: #32363a; }
+    .shell { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
+    nav { background: #354a5e; color: #fff; padding: 12px 24px; display: flex; align-items: center; gap: 24px; }
+    nav span { font-weight: 600; font-size: 1rem; }
+    nav a { color: #c9d6e3; text-decoration: none; font-size: .875rem; }
+    nav a:hover, nav a.active { color: #fff; }
+    h2 { font-size: 1.1rem; font-weight: 600; margin: 24px 0 16px; }
+    .card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+    th { text-align: left; padding: 8px 10px; background: #f0f1f2; border-bottom: 2px solid #e4e5e6; font-weight: 600; }
+    td { padding: 8px 10px; border-bottom: 1px solid #f0f1f2; vertical-align: top; }
+    tr:hover td { background: #f8f9fa; }
+    .group-header td { background: #e8f1fb; font-weight: 600; color: #0a6ed1; }
+    .completion { font-size: .8rem; color: #6a6d70; }
+    .avg-badge { display: inline-block; background: #0a6ed1; color: #fff; border-radius: 12px; padding: 2px 8px; font-size: .8rem; }
+    button { padding: 7px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: .875rem; }
+    .btn-primary { background: #0a6ed1; color: #fff; }
+    .btn-primary:hover { background: #085caf; }
+    .btn-danger { background: #bb0000; color: #fff; }
+    .btn-secondary { background: #fff; color: #0a6ed1; border: 1px solid #0a6ed1; }
+    input, textarea, select { width: 100%; padding: 7px 10px; border: 1px solid #c9cdd4; border-radius: 4px; font-size: .875rem; }
+    input[type=datetime-local], input[type=number] { width: auto; }
+    .form-row { margin-bottom: 12px; }
+    .form-row label { display: block; font-size: .8rem; color: #6a6d70; margin-bottom: 3px; }
+    .status-badge { display: inline-block; border-radius: 4px; padding: 2px 8px; font-size: .8rem; font-weight: 600; }
+    .status-draft { background: #f0f1f2; color: #6a6d70; }
+    .status-open  { background: #e8f5e9; color: #256f3a; }
+    .status-closed{ background: #fde8e8; color: #bb0000; }
+    .tabs { display: flex; gap: 0; margin-bottom: 0; }
+    .tab { padding: 10px 20px; cursor: pointer; border-bottom: 2px solid transparent; font-size: .875rem; }
+    .tab.active { border-bottom-color: #0a6ed1; color: #0a6ed1; font-weight: 600; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .detail-back { font-size: .875rem; color: #0a6ed1; cursor: pointer; margin-bottom: 12px; display: inline-block; }
+    .msg { padding: 10px 14px; border-radius: 4px; margin-bottom: 12px; font-size: .875rem; }
+    .msg-error   { background: #fde8e8; color: #bb0000; }
+    .msg-success { background: #e8f5e9; color: #256f3a; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <span>UISP 2026</span>
+  <a href="#" class="active" onclick="showTab('tab-students')">Студенти</a>
+  <a href="#" onclick="showTab('tab-rounds')">Кръгове</a>
+  <a href="#" onclick="showTab('tab-import')">Зареждане</a>
+</nav>
+
+<div class="shell">
+
+  <!-- ТАБ: СТУДЕНТИ -->
+  <div id="tab-students" class="tab-content active">
+    <h2>Студенти по групи</h2>
+    <div class="card" style="padding:0">
+      <table id="students-table">
+        <thead><tr>
+          <th>Студент</th><th>Имейл</th>
+          <th id="th-rounds"></th>
+        </tr></thead>
+        <tbody id="students-body"></tbody>
+      </table>
+    </div>
+
+    <!-- Детайлна страница на студент -->
+    <div id="student-detail" style="display:none">
+      <span class="detail-back" onclick="closeDetail()">← Обратно</span>
+      <div class="card">
+        <h2 id="detail-name"></h2>
+        <div id="detail-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ТАБ: КРЪГОВЕ -->
+  <div id="tab-rounds" class="tab-content">
+    <h2>Кръгове за оценяване</h2>
+    <div class="card">
+      <h3 style="margin-bottom:14px;font-size:.95rem">Нов кръг</h3>
+      <div id="round-msg"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+        <div class="form-row"><label>Етикет</label><input id="r-label" placeholder="Кръг 1"></div>
+        <div class="form-row"><label>Краен срок</label><input type="datetime-local" id="r-deadline"></div>
+        <div class="form-row"><label>Напомняне (часове преди)</label><input type="number" id="r-reminder" value="24" min="1"></div>
+      </div>
+      <button class="btn-primary" onclick="createRound()">Създай</button>
+    </div>
+    <div class="card" style="padding:0">
+      <table>
+        <thead><tr><th>Кръг</th><th>Статус</th><th>Краен срок</th><th>Напомняне</th><th></th></tr></thead>
+        <tbody id="rounds-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ТАБ: ЗАРЕЖДАНЕ -->
+  <div id="tab-import" class="tab-content">
+    <h2>Зареждане на студенти</h2>
+    <div class="card">
+      <div id="import-msg"></div>
+      <div class="form-row">
+        <label>Постави CSV (колони: name, email, group — без заглавен ред или с)</label>
+        <textarea id="import-csv" rows="10" placeholder="Ана Иванова,ana@uni.bg,Екип Алфа&#10;Борис Петров,boris@uni.bg,Екип Алфа"></textarea>
+      </div>
+      <button class="btn-primary" onclick="importStudents()">Зареди</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = '/odata/v4/assessment';
+let rounds = [];
+
+// --- Навигация ---
+function showTab(id) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (id === 'tab-students') loadStudents();
+  if (id === 'tab-rounds') loadRounds();
+}
+
+// --- Студенти ---
+async function loadStudents() {
+  const [sRes, rRes] = await Promise.all([
+    fetch(`${API}/Students?$orderby=group_ID,name`),
+    fetch(`${API}/AssessmentRounds?$orderby=sessionAfter`),
+  ]);
+  const students = (await sRes.json()).value;
+  rounds = (await rRes.json()).value;
+
+  // Зареждаме всички оценки
+  const pRes = await fetch(`${API}/PeerAssessments`);
+  const allAssessments = (await pRes.json()).value;
+
+  // Индекс: assessor → round → [subjects]
+  const given = {};
+  allAssessments.forEach(a => {
+    if (!given[a.assessor_ID]) given[a.assessor_ID] = {};
+    if (!given[a.assessor_ID][a.round_ID]) given[a.assessor_ID][a.round_ID] = [];
+    given[a.assessor_ID][a.round_ID].push(a.subject_ID);
+  });
+
+  // Индекс: subject → round → [scores]
+  const received = {};
+  allAssessments.forEach(a => {
+    if (!received[a.subject_ID]) received[a.subject_ID] = {};
+    if (!received[a.subject_ID][a.round_ID]) received[a.subject_ID][a.round_ID] = [];
+    received[a.subject_ID][a.round_ID].push((a.dim1+a.dim2+a.dim3+a.dim4)/4);
+  });
+
+  // Групиране
+  const byGroup = {};
+  students.forEach(s => {
+    if (!byGroup[s.group_ID]) byGroup[s.group_ID] = [];
+    byGroup[s.group_ID].push(s);
+  });
+
+  // Header за кръговете
+  const thRounds = document.getElementById('th-rounds');
+  thRounds.innerHTML = rounds.map(r => `<span style="margin-right:16px">${r.label}</span>`).join('');
+
+  const tbody = document.getElementById('students-body');
+  tbody.innerHTML = '';
+
+  for (const [groupId, members] of Object.entries(byGroup)) {
+    // Group header row
+    const groupSize = members.length;
+
+    // Per-round group completion
+    let groupCols = rounds.map(r => {
+      const totalExpected = groupSize * (groupSize - 1);
+      const totalGiven = members.reduce((s, m) => s + (given[m.ID]?.[r.ID]?.length || 0), 0);
+      const groupAvg = members.reduce((s, m) => {
+        const scores = received[m.ID]?.[r.ID] || [];
+        return s + scores.reduce((a,b) => a+b, 0);
+      }, 0) / (members.reduce((s,m) => s + (received[m.ID]?.[r.ID]?.length || 0), 0) || 1);
+      return `<span class="completion">${totalGiven}/${totalExpected}</span> ${received[members[0].group_ID] ? '' : ''} <span class="avg-badge">${groupAvg.toFixed(1)}</span>`;
+    }).join(' &nbsp; ');
+
+    const groupRow = tbody.insertRow();
+    groupRow.className = 'group-header';
+    groupRow.innerHTML = `<td colspan="2">Група ${members[0].group_ID}</td><td>${groupCols}</td>`;
+
+    members.forEach(s => {
+      const row = tbody.insertRow();
+      let roundCols = rounds.map(r => {
+        const groupmates = members.filter(m => m.ID !== s.ID);
+        const givenCount = given[s.ID]?.[r.ID]?.length || 0;
+        const scores = received[s.ID]?.[r.ID] || [];
+        const avg = scores.length ? (scores.reduce((a,b) => a+b,0)/scores.length).toFixed(1) : '—';
+        return `<span class="completion">${givenCount}/${groupmates.length} дал · ${avg} получил</span>`;
+      }).join(' &nbsp; ');
+
+      row.innerHTML = `
+        <td><a href="#" onclick="showDetail('${s.ID}','${s.name}')">${s.name}</a></td>
+        <td>${s.email}</td>
+        <td>${roundCols}</td>`;
+    });
+  }
+}
+
+// --- Детайлна страница на студент ---
+async function showDetail(studentId, name) {
+  document.getElementById('students-body').closest('.card').style.display = 'none';
+  document.getElementById('student-detail').style.display = 'block';
+  document.getElementById('detail-name').textContent = name;
+
+  const [givenRes, receivedRes, studentsRes] = await Promise.all([
+    fetch(`${API}/PeerAssessments?$filter=assessor_ID eq '${studentId}'`),
+    fetch(`${API}/PeerAssessments?$filter=subject_ID eq '${studentId}'`),
+    fetch(`${API}/Students`),
+  ]);
+  const given = (await givenRes.json()).value;
+  const received = (await receivedRes.json()).value;
+  const allStudents = (await studentsRes.json()).value;
+  const byId = Object.fromEntries(allStudents.map(s => [s.ID, s.name]));
+
+  const DIMS = ['Подготвеност','Принос','Надеждност','Отношение'];
+
+  let html = '<h3 style="margin-bottom:10px">Дадени оценки</h3>';
+  if (!given.length) html += '<p style="color:#6a6d70;font-size:.875rem">Няма.</p>';
+  given.forEach(a => {
+    html += `<div style="margin-bottom:8px;font-size:.875rem">
+      <strong>${byId[a.subject_ID] || a.subject_ID}</strong> —
+      ${DIMS.map((d,i) => `${d}: ${a['dim'+(i+1)]}`).join(', ')}
+      ${a.comment ? `<br><em style="color:#6a6d70">"${a.comment}"</em>` : ''}
+    </div>`;
+  });
+
+  html += '<h3 style="margin:16px 0 10px">Получени оценки</h3>';
+  if (!received.length) html += '<p style="color:#6a6d70;font-size:.875rem">Няма.</p>';
+  received.forEach(a => {
+    const avg = ((a.dim1+a.dim2+a.dim3+a.dim4)/4).toFixed(1);
+    html += `<div style="margin-bottom:8px;font-size:.875rem">
+      <strong>от ${byId[a.assessor_ID] || a.assessor_ID}</strong> — средно ${avg}
+      (${DIMS.map((d,i) => `${d}: ${a['dim'+(i+1)]}`).join(', ')})
+      ${a.comment ? `<br><em style="color:#6a6d70">"${a.comment}"</em>` : ''}
+    </div>`;
+  });
+
+  document.getElementById('detail-content').innerHTML = html;
+}
+
+function closeDetail() {
+  document.getElementById('student-detail').style.display = 'none';
+  document.getElementById('students-body').closest('.card').style.display = 'block';
+}
+
+// --- Кръгове ---
+async function loadRounds() {
+  const res = await fetch(`${API}/AssessmentRounds?$orderby=sessionAfter`);
+  rounds = (await res.json()).value;
+  const tbody = document.getElementById('rounds-body');
+  tbody.innerHTML = '';
+  rounds.forEach(r => {
+    const row = tbody.insertRow();
+    row.innerHTML = `
+      <td>${r.label}</td>
+      <td><span class="status-badge status-${r.status}">${r.status}</span></td>
+      <td>${r.deadline ? new Date(r.deadline).toLocaleString('bg-BG') : '—'}</td>
+      <td>${r.reminderHoursBefore}ч преди</td>
+      <td style="display:flex;gap:6px">
+        ${r.status === 'draft' ? `<button class="btn-primary" onclick="openRound('${r.ID}')">Отвори</button>` : ''}
+        ${r.status === 'open'  ? `<button class="btn-danger"  onclick="closeRound('${r.ID}')">Затвори</button>` : ''}
+      </td>`;
+  });
+}
+
+async function createRound() {
+  const label = document.getElementById('r-label').value.trim();
+  const deadline = document.getElementById('r-deadline').value;
+  const reminder = parseInt(document.getElementById('r-reminder').value) || 24;
+  if (!label) return showMsg('round-msg', 'Въведи етикет.', 'error');
+
+  const body = { label, reminderHoursBefore: reminder };
+  if (deadline) body.deadline = new Date(deadline).toISOString();
+
+  const res = await fetch(`${API}/AssessmentRounds`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (res.ok) { showMsg('round-msg', 'Кръгът е създаден.', 'success'); loadRounds(); }
+  else showMsg('round-msg', 'Грешка при създаване.', 'error');
+}
+
+async function openRound(id) {
+  const res = await fetch(`${API}/openRound`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ roundId: id }),
+  });
+  const data = await res.json();
+  alert(data.value || data.error?.message);
+  loadRounds();
+}
+
+async function closeRound(id) {
+  await fetch(`${API}/AssessmentRounds/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: 'closed' }),
+  });
+  loadRounds();
+}
+
+// --- Import ---
+async function importStudents() {
+  const csv = document.getElementById('import-csv').value;
+  if (!csv.trim()) return showMsg('import-msg', 'Постави CSV данни.', 'error');
+
+  const res = await fetch(`${API}/importStudents`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ csv }),
+  });
+  const data = await res.json();
+  const text = data.value || data.error?.message;
+  showMsg('import-msg', text, data.error ? 'error' : 'success');
+}
+
+function showMsg(elId, text, type) {
+  document.getElementById(elId).innerHTML = `<div class="msg msg-${type}">${text}</div>`;
+}
+
+// Зареждаме при старт
+loadStudents();
+</script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+[deploy]
+startCommand = "npm start"
+
+[deploy.healthcheck]
+path = "/odata/v4/assessment"
+timeout = 300

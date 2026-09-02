@@ -1,0 +1,18 @@
+{
+  "requires": {
+    "db": {
+      "[production]": { "kind": "postgres" },
+      "[development]": { "kind": "sqlite", "credentials": { "url": ":memory:" } }
+    }
+  },
+  "build": {
+    "target": "gen",
+    "tasks": [
+      { "for": "nodejs", "src": "srv", "options": { "model": ["db","srv"] } },
+      { "for": "postgres" }
+    ]
+  },
+  "server": {
+    "static": "app"
+  }
+}

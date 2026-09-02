@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Партньорска оценка — UISP 2026</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "72", Arial, sans-serif; background: #f5f6f7; color: #32363a; }
+    .shell { max-width: 720px; margin: 40px auto; padding: 0 16px; }
+    h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: 24px; color: #0a6ed1; }
+    h2 { font-size: 1rem; font-weight: 600; margin-bottom: 16px; }
+    .card { background: #fff; border-radius: 8px; padding: 24px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+    label { display: block; font-size: .875rem; margin-bottom: 4px; color: #6a6d70; }
+    input, textarea { width: 100%; padding: 8px 10px; border: 1px solid #c9cdd4; border-radius: 4px; font-size: .9rem; }
+    input:focus, textarea:focus { outline: none; border-color: #0a6ed1; }
+    button { padding: 8px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: .9rem; }
+    .btn-primary { background: #0a6ed1; color: #fff; }
+    .btn-primary:hover { background: #085caf; }
+    .btn-secondary { background: #fff; color: #0a6ed1; border: 1px solid #0a6ed1; }
+    .msg { padding: 10px 14px; border-radius: 4px; margin-bottom: 12px; font-size: .875rem; }
+    .msg-error { background: #fde8e8; color: #bb0000; }
+    .msg-success { background: #e8f5e9; color: #256f3a; }
+    .dim-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .dim-label { font-size: .875rem; }
+    .dim-scale { display: flex; gap: 6px; }
+    .dim-scale label { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: .75rem; color: #6a6d70; cursor: pointer; }
+    .dim-scale input[type=radio] { cursor: pointer; }
+    .peer-block { border-top: 1px solid #e4e5e6; padding-top: 16px; margin-top: 16px; }
+    .peer-name { font-weight: 600; margin-bottom: 12px; }
+    .hidden { display: none; }
+    #section-results .avg { font-size: 2rem; font-weight: 700; color: #0a6ed1; }
+    .dim-result { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f0f1f2; font-size: .875rem; }
+    .comment-item { background: #f5f6f7; border-radius: 4px; padding: 8px 12px; margin-top: 6px; font-size: .875rem; font-style: italic; }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <h1>Партньорска оценка — UISP 2026</h1>
+
+  <!-- ВХОД -->
+  <div id="section-login" class="card">
+    <h2>Вход</h2>
+    <div id="login-msg"></div>
+    <div id="step-email">
+      <label>Имейл адрес</label>
+      <input type="email" id="input-email" placeholder="твоя@имейл.com" style="margin-bottom:12px">
+      <button class="btn-primary" onclick="requestOtp()">Изпрати код</button>
+    </div>
+    <div id="step-otp" class="hidden" style="margin-top:16px">
+      <label>Код от имейла</label>
+      <input type="text" id="input-otp" placeholder="6-цифрен код" maxlength="6" style="margin-bottom:12px">
+      <button class="btn-primary" onclick="verifyOtp()">Влез</button>
+    </div>
+  </div>
+
+  <!-- АНКЕТА -->
+  <div id="section-form" class="hidden">
+    <div class="card">
+      <h2 id="round-label"></h2>
+      <p id="round-deadline" style="color:#6a6d70;font-size:.875rem;margin-bottom:16px"></p>
+      <div id="peers-container"></div>
+      <button class="btn-primary" onclick="submitAll()" style="margin-top:16px">Запази оценките</button>
+    </div>
+  </div>
+
+  <!-- РЕЗУЛТАТИ -->
+  <div id="section-results" class="hidden">
+    <div class="card">
+      <h2>Моите резултати</h2>
+      <div id="results-container"></div>
+    </div>
+    <div style="margin-top:12px">
+      <button class="btn-secondary" onclick="showForm()">Обратно към анкетата</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '/odata/v4/assessment';
+let currentStudent = null;
+let currentRound = null;
+let groupmates = [];
+
+function msg(elId, text, type) {
+  const el = document.getElementById(elId);
+  el.innerHTML = text ? `<div class="msg msg-${type}">${text}</div>` : '';
+}
+
+// --- Вход ---
+async function requestOtp() {
+  const email = document.getElementById('input-email').value.trim();
+  if (!email) return msg('login-msg', 'Въведи имейл адрес.', 'error');
+
+  // Проверяваме дали студентът съществува
+  const res = await fetch(`${API}/Students?$filter=email eq '${encodeURIComponent(email)}'`);
+  const data = await res.json();
+  if (!data.value?.length) return msg('login-msg', 'Имейлът не е регистриран в системата.', 'error');
+
+  currentStudent = data.value[0];
+
+  // В dev режим — симулираме OTP (IAS ще го управлява в prod)
+  msg('login-msg', 'Код изпратен на имейла ти. (Dev режим: въведи 123456)', 'success');
+  document.getElementById('step-otp').classList.remove('hidden');
+}
+
+async function verifyOtp() {
+  const code = document.getElementById('input-otp').value.trim();
+  // Dev режим: приемаме 123456
+  if (code !== '123456') return msg('login-msg', 'Невалиден код.', 'error');
+  msg('login-msg', '', '');
+  document.getElementById('section-login').classList.add('hidden');
+  await loadForm();
+}
+
+// --- Анкета ---
+async function loadForm() {
+  // Намираме отворен кръг
+  const res = await fetch(`${API}/AssessmentRounds?$filter=status eq 'open'`);
+  const data = await res.json();
+
+  if (!data.value?.length) {
+    document.getElementById('section-form').classList.remove('hidden');
+    document.getElementById('peers-container').innerHTML =
+      '<p style="color:#6a6d70">Няма отворен кръг за оценяване в момента.</p>';
+    document.getElementById('round-label').textContent = 'Партньорска оценка';
+    return;
+  }
+
+  currentRound = data.value[0];
+  document.getElementById('round-label').textContent = currentRound.label;
+  document.getElementById('round-deadline').textContent = currentRound.deadline
+    ? `Краен срок: ${new Date(currentRound.deadline).toLocaleString('bg-BG')}`
+    : '';
+
+  // Зареждаме съотборниците
+  const sRes = await fetch(`${API}/Students?$filter=group_ID eq '${currentStudent.group_ID}' and ID ne '${currentStudent.ID}'`);
+  const sData = await sRes.json();
+  groupmates = sData.value;
+
+  // Зареждаме вече подадени оценки
+  const pRes = await fetch(`${API}/PeerAssessments?$filter=round_ID eq '${currentRound.ID}' and assessor_ID eq '${currentStudent.ID}'`);
+  const pData = await pRes.json();
+  const existing = {};
+  pData.value.forEach(p => { existing[p.subject_ID] = p; });
+
+  const container = document.getElementById('peers-container');
+  container.innerHTML = '';
+
+  const DIMS = [
+    { key: 'dim1', label: 'Подготвеност' },
+    { key: 'dim2', label: 'Принос' },
+    { key: 'dim3', label: 'Надеждност' },
+    { key: 'dim4', label: 'Отношение' },
+  ];
+
+  groupmates.forEach((peer, pi) => {
+    const ex = existing[peer.ID] || {};
+    const block = document.createElement('div');
+    block.className = 'peer-block';
+    block.dataset.peerId = peer.ID;
+    block.dataset.existingId = ex.ID || '';
+
+    let html = `<div class="peer-name">${peer.name}</div>`;
+    DIMS.forEach(d => {
+      html += `<div class="dim-row">
+        <div class="dim-label">${d.label}</div>
+        <div class="dim-scale">`;
+      [1,2,3,4].forEach(v => {
+        const checked = ex[d.key] === v ? 'checked' : '';
+        html += `<label>
+          <input type="radio" name="${d.key}-${pi}" value="${v}" ${checked}> ${v}
+        </label>`;
+      });
+      html += `</div></div>`;
+    });
+    html += `<div style="margin-top:8px">
+      <label>Коментар (незадължителен)</label>
+      <textarea rows="2" name="comment-${pi}" style="margin-top:4px">${ex.comment || ''}</textarea>
+    </div>`;
+    block.innerHTML = html;
+    container.appendChild(block);
+  });
+
+  document.getElementById('section-form').classList.remove('hidden');
+}
+
+async function submitAll() {
+  const blocks = document.querySelectorAll('.peer-block');
+  const DIMS = ['dim1','dim2','dim3','dim4'];
+  let errors = [];
+
+  for (let pi = 0; pi < blocks.length; pi++) {
+    const block = blocks[pi];
+    const subjectId = block.dataset.peerId;
+    const existingId = block.dataset.existingId;
+    const comment = block.querySelector(`textarea[name="comment-${pi}"]`).value.trim() || null;
+
+    const dims = {};
+    for (const d of DIMS) {
+      const sel = block.querySelector(`input[name="${d}-${pi}"]:checked`);
+      if (!sel) { errors.push(`Попълни всички оценки за ${groupmates[pi].name}.`); break; }
+      dims[d] = parseInt(sel.value);
+    }
+    if (errors.length) continue;
+
+    const body = { ...dims, comment, assessor_ID: currentStudent.ID, subject_ID: subjectId, round_ID: currentRound.ID };
+
+    if (existingId) {
+      await fetch(`${API}/PeerAssessments/${existingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dims),
+      });
+    } else {
+      const res = await fetch(`${API}/PeerAssessments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (data.error) errors.push(data.error.message);
+      else block.dataset.existingId = data.ID;
+    }
+  }
+
+  if (errors.length) {
+    alert(errors.join('\n'));
+  } else {
+    alert('Оценките са запазени.');
+  }
+}
+
+// --- Резултати ---
+async function showResults() {
+  document.getElementById('section-form').classList.add('hidden');
+  document.getElementById('section-results').classList.remove('hidden');
+
+  const res = await fetch(`${API}/AnonymousAssessments?$filter=subjectId eq '${currentStudent.ID}'`);
+  const data = await res.json();
+
+  const container = document.getElementById('results-container');
+  if (!data.value?.length) {
+    container.innerHTML = '<p style="color:#6a6d70">Все още няма получени оценки.</p>';
+    return;
+  }
+
+  const byRound = {};
+  data.value.forEach(a => {
+    if (!byRound[a.roundId]) byRound[a.roundId] = [];
+    byRound[a.roundId].push(a);
+  });
+
+  const DIMS = [
+    { key: 'dim1', label: 'Подготвеност' },
+    { key: 'dim2', label: 'Принос' },
+    { key: 'dim3', label: 'Надеждност' },
+    { key: 'dim4', label: 'Отношение' },
+  ];
+
+  let html = '';
+  for (const [roundId, assessments] of Object.entries(byRound)) {
+    const avg = assessments.reduce((s, a) => s + (a.dim1+a.dim2+a.dim3+a.dim4)/4, 0) / assessments.length;
+    html += `<h3 style="margin:16px 0 8px">Кръг</h3>
+      <div class="avg">${avg.toFixed(2)}</div>
+      <p style="font-size:.8rem;color:#6a6d70;margin-bottom:12px">средна оценка от ${assessments.length} съотборника</p>`;
+
+    DIMS.forEach(d => {
+      const dimAvg = assessments.reduce((s, a) => s + a[d.key], 0) / assessments.length;
+      html += `<div class="dim-result"><span>${d.label}</span><span>${dimAvg.toFixed(2)}</span></div>`;
+    });
+
+    const comments = assessments.filter(a => a.comment);
+    if (comments.length) {
+      html += '<p style="margin-top:12px;font-size:.875rem;font-weight:600">Коментари:</p>';
+      comments.forEach(a => { html += `<div class="comment-item">${a.comment}</div>`; });
+    }
+  }
+  container.innerHTML = html;
+}
+
+function showForm() {
+  document.getElementById('section-results').classList.add('hidden');
+  document.getElementById('section-form').classList.remove('hidden');
+}
+</script>
+</body>
+</html>
